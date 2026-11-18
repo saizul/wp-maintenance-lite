@@ -1,0 +1,42 @@
+name: Bug report
+description: The maintenance page shows when it should not (or the other way round), or the plugin does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! If you are locked out, add `define( 'WP_MAINTENANCE_LITE_DISABLE', true );` to wp-config.php first.
+        Please do not post passwords, preview links, tokens or private URLs.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead? Include the HTTP status code if you checked it.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Switch on maintenance mode with ...
+        2. Visit ... as ...
+        3. See ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: WordPress, PHP and plugin versions, theme, caching plugin, CDN or reverse proxy, single site or multisite.
+      placeholder: |
+        WordPress 7.0, PHP 8.3, Maintenance Lite 0.1.0
+        Cache / CDN: ...
+        Theme: ...
+    validations:
+      required: true
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of `wp maintenance-lite status --format=json` (optional, remove the preview_url)
+      render: json

@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest an improvement to the settings screen, the page, WP-CLI or developer hooks.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Maintenance Lite stays small on purpose: no page builder, no subscriber lists, no external services.
+        Features that fit are about access rules, correct HTTP behaviour, accessibility and developer hooks.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Could a filter or a theme template do this instead?
+  - type: checkboxes
+    id: build
+    attributes:
+      label: Contribution
+      options:
+        - label: I would like to open a pull request for this.

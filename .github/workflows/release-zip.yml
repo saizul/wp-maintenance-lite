@@ -1,0 +1,99 @@
+name: Release zip
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  SLUG: wp-maintenance-lite
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+
+      - name: Check the version matches the tag
+        if: github.event_name == 'release'
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          header=$(sed -n 's/^ \* Version: *//p' "$SLUG.php" | tr -d '[:space:]')
+          define=$(sed -n "s/^define( 'WP_MAINTENANCE_LITE_VERSION', '\(.*\)' );/\1/p" "$SLUG.php" | tr -d '[:space:]')
+          constant=$(sed -n "s/^.*const VERSION = '\(.*\)';/\1/p" src/Plugin.php | tr -d '[:space:]')
+          stable=$(sed -n 's/^Stable tag: *//p' readme.txt | tr -d '[:space:]')
+          echo "tag=$tag header=$header define=$define constant=$constant stable=$stable"
+          test "$tag" = "$header"
+          test "$tag" = "$define"
+          test "$tag" = "$constant"
+          test "$tag" = "$stable"
+
+      - name: Build the plugin folder
+        run: |
+          mkdir -p "build/$SLUG"
+          rsync -a --exclude-from=.distignore ./ "build/$SLUG/"
+          # The plugin has no runtime Composer dependencies and no JavaScript build step.
+          test ! -e "build/$SLUG/vendor"
+          test ! -e "build/$SLUG/tests"
+          test ! -e "build/$SLUG/bin"
+          test -e "build/$SLUG/$SLUG.php"
+          test -e "build/$SLUG/uninstall.php"
+          test -e "build/$SLUG/src/Plugin.php"
+          test -e "build/$SLUG/src/Gate.php"
+          test -e "build/$SLUG/src/Admin/SettingsPage.php"
+          test -e "build/$SLUG/src/Cli/Command.php"
+          test -e "build/$SLUG/templates/maintenance.php"
+          test -e "build/$SLUG/languages/$SLUG.pot"
+          test -e "build/$SLUG/readme.txt"
+          test -e "build/$SLUG/LICENSE"
+          find "build/$SLUG" -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+          find "build/$SLUG" -type f | sort
+
+      - name: Smoke test the autoloader and the gate
+        run: |
+          php -r '
+            define("ABSPATH", __DIR__);
+            function wp_salt($s = "auth") { return "salt"; }
+            spl_autoload_register(function ($c) {
+              $prefix = "Saizul\\MaintenanceLite\\";
+              if (strpos($c, $prefix) === 0) { require "build/wp-maintenance-lite/src/" . str_replace("\\", "/", substr($c, strlen($prefix))) . ".php"; }
+            });
+            $gate     = new Saizul\MaintenanceLite\Gate();
+            $settings = array("enabled" => true, "token" => str_repeat("a", 32), "ip_allowlist" => array("203.0.113.0/24"));
+            $now      = 1800000000;
+            $visitor  = $gate->decide($settings, new Saizul\MaintenanceLite\Request(array("ip" => "198.51.100.1")), $now);
+            $office   = $gate->decide($settings, new Saizul\MaintenanceLite\Request(array("ip" => "203.0.113.5")), $now);
+            $login    = $gate->decide($settings, new Saizul\MaintenanceLite\Request(array("script" => "wp-login.php")), $now);
+            $ok = $visitor->block && 503 === $visitor->status && 3600 === $visitor->retry_after
+              && ! $office->block && ! $login->block;
+            exit($ok ? 0 : 1);
+          '
+
+      - name: Create the zip
+        run: |
+          cd build
+          zip -r -q "../$SLUG.zip" "$SLUG"
+          cd ..
+          unzip -l "$SLUG.zip" | tail -n 1
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SLUG }}
+          path: ${{ env.SLUG }}.zip
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "$GITHUB_REF_NAME" "$SLUG.zip" --clobber
